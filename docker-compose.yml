@@ -1,0 +1,22 @@
+services:
+  target:
+    build: .
+    container_name: pwnkit-qemu-target
+    hostname: pwnkit-qemu
+    # KVM if available → much faster; falls back to TCG automatically
+    devices:
+      - /dev/kvm:/dev/kvm
+    privileged: true
+    ports:
+      - "2222:2222"
+    volumes:
+      - pwnkit-images:/lab/images
+    environment:
+      - QEMU_RAM=1024
+      - QEMU_CPUS=2
+    stdin_open: true
+    tty: true
+    restart: "no"
+
+volumes:
+  pwnkit-images:

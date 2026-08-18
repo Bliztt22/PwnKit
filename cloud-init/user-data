@@ -1,0 +1,74 @@
+#cloud-config
+hostname: pwnkit-target
+manage_etc_hosts: true
+
+users:
+  - name: lab
+    gecos: PwnKit Lab User
+    groups: [wheel]
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    shell: /bin/bash
+    lock_passwd: false
+    plain_text_passwd: lab
+
+ssh_pwauth: true
+disable_root: false
+chpasswd:
+  list: |
+    root:lab
+    lab:lab
+  expire: false
+
+package_update: false
+package_upgrade: false
+
+write_files:
+  - path: /etc/yum.repos.d/CentOS-Vault.repo
+    permissions: "0644"
+    content: |
+      [base]
+      name=CentOS-7.9.2009 - Base
+      baseurl=http://vault.centos.org/7.9.2009/os/$basearch/
+      enabled=1
+      gpgcheck=0
+
+      [updates]
+      name=CentOS-7.9.2009 - Updates
+      baseurl=http://vault.centos.org/7.9.2009/updates/$basearch/
+      enabled=1
+      gpgcheck=0
+
+      [extras]
+      name=CentOS-7.9.2009 - Extras
+      baseurl=http://vault.centos.org/7.9.2009/extras/$basearch/
+      enabled=1
+      gpgcheck=0
+
+runcmd:
+  - rm -f /etc/yum.repos.d/CentOS-Base.repo /etc/yum.repos.d/CentOS-CR.repo /etc/yum.repos.d/CentOS-Debuginfo.repo /etc/yum.repos.d/CentOS-fasttrack.repo /etc/yum.repos.d/CentOS-Media.repo /etc/yum.repos.d/CentOS-Sources.repo /etc/yum.repos.d/CentOS-Vault.repo.bak 2>/dev/null || true
+  - systemctl enable sshd
+  - systemctl start sshd
+  - chmod 4755 /usr/bin/pkexec || true
+  # Force vulnerable polkit if a patched one is present
+  - |
+    PK=$(rpm -q polkit 2>/dev/null || true)
+    echo "polkit currently: $PK"
+    if echo "$PK" | grep -q '_9.1'; then
+      curl -fsSL -o /tmp/polkit.rpm \
+        http://vault.centos.org/7.9.2009/os/x86_64/Packages/polkit-0.112-26.el7.x86_64.rpm
+      rpm -Uvh --force --nodeps /tmp/polkit.rpm
+      chmod 4755 /usr/bin/pkexec
+    fi
+  - yum -y install gcc make 2>/dev/null || true
+  - |
+    {
+      echo "========================================"
+      echo " PwnKit QEMU Lab — ready"
+      echo " user: lab / lab"
+      echo " polkit: $(rpm -q polkit 2>/dev/null || echo unknown)"
+      echo " pkexec: $(ls -l /usr/bin/pkexec 2>/dev/null || echo missing)"
+      echo " kernel: $(uname -r)"
+      echo "========================================"
+    } > /etc/motd
+
+final_message: "PwnKit QEMU lab ready. SSH lab@host -p 2222 (password: lab)"
